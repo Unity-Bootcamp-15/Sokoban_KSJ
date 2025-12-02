@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Sokoban
+﻿namespace Sokoban
 {
 
     struct Point
