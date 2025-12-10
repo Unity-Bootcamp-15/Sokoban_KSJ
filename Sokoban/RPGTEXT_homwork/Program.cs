@@ -1,156 +1,363 @@
-﻿
+﻿using System;
 
-
-using System;
-
-//  1. Character 클래스 구현 (기본 클래스) - Public Field 사용
-
-public class Character
+namespace Sokoban
 {
-    // ■ 멤버 변수: 미션에 따라 public 필드로 직접 선언 (가장 간단한 형태)
-    public string Name;
-    public int Hp;
-    public int Atk;
-
-    // ■ 생성자
-    public Character(string name, int hp, int atk)
+    // [유지] Point 구조체
+    struct Point
     {
-        Name = name;
-        Hp = hp;
-        Atk = atk;
+        public int X;
+        public int Y;
     }
 
-
-    public virtual void Attack(Character target)
+    internal class Program
     {
 
-        target.Hp -= Atk;
+        public const int MAP_SIZE_MIN_X = 0;
+        public const int MAP_SIZE_MIN_Y = 0;
+        public const int MAP_SIZE_MAX_X = 20;
+        public const int MAP_SIZE_MAX_Y = 10;
+        public const int WALL_COUNT = 5;
 
-        if (target.Hp < 0)
+        public const int PLAYER_START_X = 5;
+        public const int PLAYER_START_Y = 5;
+        public const int BOX1_START_X = 10;
+        public const int BOX1_START_Y = 5;
+        public const int GOAL1_START_X = 15;
+        public const int GOAL1_START_Y = 5;
+        public const int BOX2_START_X = 8;
+        public const int BOX2_START_Y = 8;
+        public const int GOAL2_START_X = 18;
+        public const int GOAL2_START_Y = 8;
+
+        public const ConsoleColor BOX1_COLOR = ConsoleColor.Yellow;
+        public const ConsoleColor BOX2_COLOR = ConsoleColor.Cyan;
+
+        // [유지] Main 함수는 SokobanGame을 생성하고 실행하는 역할만 합니다.
+        static void Main(string[] args)
         {
-            target.Hp = 0;
+            Console.BackgroundColor = ConsoleColor.Black;
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.CursorVisible = false;
+
+            while (true)
+            {
+                // [변경] 게임 실행 로직을 SokobanGame 인스턴스에 위임합니다.
+                SokobanGame game = new SokobanGame();
+                game.RunSession();
+            }
         }
     }
 
 
-    public bool IsDead()
-    {
-        return Hp <= 0;
-    }
-
-    public override string ToString()
-    {
-        return $"{Name} (HP:{Hp}, ATK:{Atk})";
-    }
-}
-
-// =================================================================================
-//  2. Player 클래스 구현 (Character 상속)
-
-public class Player : Character
-{
-    // 추가 변수: 경험치 (외부에서 읽기만 가능하게 private set;)
-    public int Exp { get; private set; } = 0;
-
-    // 생성자
-    public Player(string name, int hp, int atk) : base(name, hp, atk)
+    class SokobanGame
     {
 
-    }
+        private int PlayerX;
+        private int PlayerY;
+        private int Box1X;
+        private int Box1Y;
+        private int Goal1X;
+        private int Goal1Y;
+        private int Box2X;
+        private int Box2Y;
+        private int Goal2X;
+        private int Goal2Y;
+        private Point[] walls = new Point[Program.WALL_COUNT];
+        private bool IsBox1OnGoal = false;
+        private bool IsBox2OnGoal = false;
+        private int GobackX;
+        private int GobackY;
+        private bool shouldGobackPlayer = false;
 
-    // 경험치 증가 함수
-    public void GainExp(int amount)
-    {
-        Exp += amount;
-    }
-}
 
-// =================================================================================
-//  3. Monster 클래스 구현 (Character 상속)
-
-public class Monster : Character
-{
-    private static Random random = new Random();
-
-    // 생성자: 이름만 받고, Hp와 Atk는 랜덤으로 설정
-    public Monster(string name) : base(name, 0, 0)
-    {
-        // Character 클래스의 public 필드(Hp, Atk)에 직접 값 할당
-        this.Hp = random.Next(20, 51);
-        this.Atk = random.Next(2, 7);
-    }
-}
-
-// =================================================================================
-//  4. Main()에서 게임 구현
-
-class Program
-{
-
-    static string RandomName()
-    {
-        string[] names = { "슬라임", "고블린", "늑대", "박쥐" };
-        return names[new Random().Next(names.Length)];
-    }
-
-    // 메인 함수
-    static void Main(string[] args)
-    {
-        Console.WriteLine("=== 몬스터 사냥 게임 ===");
-
-        Player player = new Player("용사", 40, 8);
-        bool isPlaying = true;
-
-        while (isPlaying)
+        public SokobanGame()
         {
-            Monster monster = new Monster(RandomName());
-            Console.WriteLine($"\n몬스터 등장! {monster}");
 
-            while (!player.IsDead() && !monster.IsDead())
+            PlayerX = Program.PLAYER_START_X;
+            PlayerY = Program.PLAYER_START_Y;
+            Box1X = Program.BOX1_START_X;
+            Box1Y = Program.BOX1_START_Y;
+            Goal1X = Program.GOAL1_START_X;
+            Goal1Y = Program.GOAL1_START_Y;
+            Box2X = Program.BOX2_START_X;
+            Box2Y = Program.BOX2_START_Y;
+            Goal2X = Program.GOAL2_START_X;
+            Goal2Y = Program.GOAL2_START_Y;
+
+            // [유지] 벽 위치 초기화
+            walls[0] = new Point { X = 3, Y = 3 };
+            walls[1] = new Point { X = 17, Y = 7 };
+            walls[2] = new Point { X = 12, Y = 2 };
+            walls[3] = new Point { X = 5, Y = 7 };
+            walls[4] = new Point { X = 15, Y = 4 };
+        }
+
+        // [추가] RunSession 메서드: 게임 루프를 실행합니다.
+        public void RunSession()
+        {
+            while (true)
             {
-                // 플레이어 공격
-                player.Attack(monster);
-                Console.WriteLine($"{player.Name} 공격 → {monster.Name} HP:{monster.Hp}");
+                Console.Clear();
 
-                if (monster.IsDead())
+                // [변경] 그리기 로직을 기존 코드의 순서대로 메서드 호출로 대체했습니다.
+                DrawMapBoundary();
+                UpdateGoalStatus();
+                DrawGoals();
+                DrawWalls();
+                DrawBoxes();
+                DrawPlayer();
+                DrawControlMessage();
 
-                    break;
+                GobackX = PlayerX;
+                GobackY = PlayerY;
+                shouldGobackPlayer = false;
 
-                // 몬스터 반격
-                monster.Attack(player);
-                Console.WriteLine($"{monster.Name} 반격 → {player.Name} HP:{player.Hp}");
+                ConsoleKeyInfo KeyInfo = Console.ReadKey(true);
 
-                if (player.IsDead())
+                if (KeyInfo.Key == ConsoleKey.F5)
                 {
-                    isPlaying = false;
+                    ClearAllMessages();
+                    return;
+                }
 
-                    break;
+                // [변경] 이동 및 충돌 로직을 메서드 호출로 대체했습니다.
+                HandleMovement(KeyInfo);
+
+                // [변경] 되돌리기 및 메시지 처리 로직을 메서드 호출로 대체했습니다.
+                HandlePlayerGoback();
+
+                if (CheckWinCondition())
+                {
+                    HandleWin();
+                    return;
                 }
             }
+        }
 
-            // --- 전투 결과 처리 ---
-            if (player.IsDead())
+
+
+        private void DrawMapBoundary() // [변경] 맵 경계 그리기 로직 분리
+        {
+            Console.ForegroundColor = ConsoleColor.DarkRed;
+            for (int x = Program.MAP_SIZE_MIN_X; x <= Program.MAP_SIZE_MAX_X; x++)
             {
-                Console.WriteLine($"{player.Name}가 쓰러졌습니다. 게임 종료!");
+                Console.SetCursorPosition(x, Program.MAP_SIZE_MIN_Y); Console.Write("#");
+                Console.SetCursorPosition(x, Program.MAP_SIZE_MAX_Y); Console.Write("#");
+            }
+            for (int y = Program.MAP_SIZE_MIN_Y; y <= Program.MAP_SIZE_MAX_Y; y++)
+            {
+                Console.SetCursorPosition(Program.MAP_SIZE_MIN_X, y); Console.Write("#");
+                Console.SetCursorPosition(Program.MAP_SIZE_MAX_X, y); Console.Write("#");
+            }
+        }
 
-                break;
+        private void UpdateGoalStatus() // 박스가 골인 지점에 들어왔는지
+        {
+            IsBox1OnGoal = (Box1X == Goal1X && Box1Y == Goal1Y);
+            IsBox2OnGoal = (Box2X == Goal2X && Box2Y == Goal2Y);
+        }
+
+        private void DrawGoals() // 골인 지점 그리기 
+        {
+            // Goal1
+            Console.SetCursorPosition(Goal1X, Goal1Y);
+            if (IsBox1OnGoal)
+            {
+                Console.ForegroundColor = Program.BOX1_COLOR;
+                Console.Write("★");
             }
             else
             {
-                player.GainExp(10);
-                Console.WriteLine($"{monster.Name} 처치! 경험치 +10");
-                Console.WriteLine($"현재 EXP: {player.Exp}");
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                Console.Write("O");
+            }
 
-                Console.Write("계속 싸우시겠습니까? (y/n): ");
-                string input = Console.ReadLine()?.ToLower();
-
-                if (input == "n")
-                {
-                    isPlaying = false;
-                }
+            // Goal2
+            Console.SetCursorPosition(Goal2X, Goal2Y);
+            if (IsBox2OnGoal)
+            {
+                Console.ForegroundColor = Program.BOX2_COLOR;
+                Console.Write("★");
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.DarkCyan;
+                Console.Write("O");
             }
         }
 
+        private void DrawWalls() // [변경] 벽 그리기 로직 분리
+        {
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            for (int i = 0; i < walls.Length; i++)
+            {
+                Point wall = walls[i];
+                Console.SetCursorPosition(wall.X, wall.Y);
+                Console.Write("■");
+            }
+        }
 
+        private void DrawBoxes() // [변경] 박스 그리기 로직 분리
+        {
+            // Box1
+            if (!((Box1X == Goal1X && Box1Y == Goal1Y) || (Box1X == Goal2X && Box1Y == Goal2Y)))
+            {
+                Console.SetCursorPosition(Box1X, Box1Y);
+                Console.ForegroundColor = Program.BOX1_COLOR;
+                Console.Write("■");
+            }
+
+            // Box2
+            if (!((Box2X == Goal2X && Box2Y == Goal2Y) || (Box2X == Goal1X && Box2Y == Goal1Y)))
+            {
+                Console.SetCursorPosition(Box2X, Box2Y);
+                Console.ForegroundColor = Program.BOX2_COLOR;
+                Console.Write("■");
+            }
+        }
+
+        private void DrawPlayer() // [변경] 플레이어 그리기 로직 분리
+        {
+            Console.SetCursorPosition(PlayerX, PlayerY);
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write("P");
+            Console.ResetColor();
+        }
+
+        private void DrawControlMessage() // [변경] 조작 메시지 출력 로직 분리
+        {
+            Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 2);
+            Console.Write("                                            ");
+            Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 2);
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Write("조작: 화살표키 | 실수 시: F5 (재시작)");
+            Console.ResetColor();
+        }
+
+
+        private void HandleMovement(ConsoleKeyInfo KeyInfo) // [변경] 이동/충돌 처리 로직을 묶는 상위 메서드
+        {
+            // [유지] 플레이어 위치 변경 switch문
+            switch (KeyInfo.Key)
+            {
+                case ConsoleKey.UpArrow: PlayerY -= 1; break;
+                case ConsoleKey.DownArrow: PlayerY += 1; break;
+                case ConsoleKey.LeftArrow: PlayerX -= 1; break;
+                case ConsoleKey.RightArrow: PlayerX += 1; break;
+                default: return;
+            }
+
+            int newPlayerX = PlayerX;
+            int newPlayerY = PlayerY;
+            int MoveDirX = newPlayerX - GobackX;
+            int MoveDirY = newPlayerY - GobackY;
+
+            // 맵 경계/벽 충돌 검사
+            bool isCollidedmap = newPlayerX <= Program.MAP_SIZE_MIN_X || newPlayerX >= Program.MAP_SIZE_MAX_X ||
+                                 newPlayerY <= Program.MAP_SIZE_MIN_Y || newPlayerY >= Program.MAP_SIZE_MAX_Y;
+
+            bool isCollidedWithWall = CheckWallCollision(newPlayerX, newPlayerY); // 벽 충돌 검사 함수 호출
+
+            if (isCollidedmap || isCollidedWithWall)
+            {
+                shouldGobackPlayer = true;
+            }
+            // Box1 충돌 및 이동 처리
+            else if (newPlayerX == Box1X && newPlayerY == Box1Y)
+            {
+                HandleBoxPush(ref Box1X, ref Box1Y, Box2X, Box2Y, MoveDirX, MoveDirY); // 박스 밀기 함수 
+            }
+            // Box2 충돌 및 이동 처리
+            else if (newPlayerX == Box2X && newPlayerY == Box2Y)
+            {
+                HandleBoxPush(ref Box2X, ref Box2Y, Box1X, Box1Y, MoveDirX, MoveDirY); // 박스 밀기 함수 
+            }
+        }
+
+        private bool CheckWallCollision(int x, int y) // 벽에 박는다라는 조건
+        {
+            for (int i = 0; i < walls.Length; i++)
+            {
+                if (x == walls[i].X && y == walls[i].Y)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void HandleBoxPush(ref int CurrentBoxX, ref int CurrentBoxY, int OtherBoxX, int OtherBoxY, int MoveDirX, int MoveDirY) // 박스 미는 동작
+        {
+            int NextBoxX = CurrentBoxX + MoveDirX;
+            int NextBoxY = CurrentBoxY + MoveDirY;
+
+            bool isNextBoxCollidedWithOtherBox = (NextBoxX == OtherBoxX && NextBoxY == OtherBoxY);
+
+            bool isBoxCollidedWithBoundary = NextBoxX <= Program.MAP_SIZE_MIN_X || NextBoxX >= Program.MAP_SIZE_MAX_X ||
+                                             NextBoxY <= Program.MAP_SIZE_MIN_Y || NextBoxY >= Program.MAP_SIZE_MAX_Y;
+
+            bool isNextBoxCollidedWithWall = CheckWallCollision(NextBoxX, NextBoxY);
+
+            if (isBoxCollidedWithBoundary || isNextBoxCollidedWithWall || isNextBoxCollidedWithOtherBox)
+            {
+                shouldGobackPlayer = true;
+            }
+            else // 충돌하지 않았다면
+            {
+                CurrentBoxX = NextBoxX;
+                CurrentBoxY = NextBoxY;
+            }
+        }
+
+        private void HandlePlayerGoback() // 플레이어 충돌시 되돌리는 메시지
+        {
+            if (shouldGobackPlayer)
+            {
+                // 충돌 메시지 출력
+                Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 3);
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.Write("충돌함! (F5로 재시작)");
+
+                PlayerX = GobackX;
+                PlayerY = GobackY;
+            }
+            else
+            {
+                // 메시지 지우기
+                Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 3);
+                Console.Write("                                       ");
+            }
+        }
+
+        private bool CheckWinCondition() // 이겼다란 조건 확인 
+        {
+            return IsBox1OnGoal && IsBox2OnGoal;
+        }
+
+        private void HandleWin() // 승리한다는 조건만 쓰는걸로 변경
+        {
+            // 승리 메시지
+            Console.SetCursorPosition(Program.MAP_SIZE_MIN_X, Program.MAP_SIZE_MAX_Y + 4);
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("모든 박스 골인! 게임 클리어!");
+
+            ConsoleKeyInfo endKeyInfo = Console.ReadKey(true);
+
+            if (endKeyInfo.Key != ConsoleKey.F5)
+            {
+                // [유지] 게임 전체 종료
+                Environment.Exit(0);
+            }
+        }
+
+        private void ClearAllMessages() // [변경] F5 재시작 전 메시지 정리 로직 분리 (이거 필요한건가?)
+        {
+            Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 3);
+            Console.Write("                                            ");
+            Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 4);
+            Console.Write("                                            ");
+            Console.SetCursorPosition(5, Program.MAP_SIZE_MAX_Y + 5);
+            Console.Write("                                            ");
+        }
     }
 }
